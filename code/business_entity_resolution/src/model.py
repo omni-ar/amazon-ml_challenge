@@ -45,34 +45,35 @@ def decide(sc: pl.DataFrame, t1: float, t2: float, t3: float, exclusive: bool = 
 
 def tune_decision(sc: pl.DataFrame, gt: pl.DataFrame, s1_ids: pl.Series) -> tuple:
     best = None
-    grid1 = [0.4, 0.5, 0.6, 0.7, 0.8]
-    grid2 = [0.5, 0.6, 0.7, 0.8, 0.9]
-    grid3 = [0.6, 0.7, 0.8, 0.9, 0.95]
+    # Calibrated high-precision search grid specifically tuned for F_0.5
+    grid1 = [0.70, 0.75, 0.80, 0.85, 0.88, 0.90]
+    grid2 = [0.65, 0.70, 0.75, 0.80, 0.85, 0.88, 0.90]
+    grid3 = [0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
     
     for ex in [True]:
         for t1 in grid1:
             for t2 in grid2:
                 for t3 in grid3:
-                    if t3 < t2 or t2 < t1 - 0.3:
+                    if t3 < t2 or t2 < t1 - 0.15:
                         continue
                     m = macro_f05(decide(sc, t1, t2, t3, ex), gt, s1_ids)
                     if best is None or m["macroF05"] > best[0]["macroF05"]:
                         best = (m, dict(t1=t1, t2=t2, t3=t3, exclusive=ex))
                         
-    glob = max(((macro_f05(decide(sc, t, t, t, False), gt, s1_ids), t) for t in [0.4, 0.5, 0.6, 0.7, 0.8]),
+    glob = max(((macro_f05(decide(sc, t, t, t, False), gt, s1_ids), t) for t in [0.75, 0.80, 0.85, 0.90]),
                key=lambda x: x[0]["macroF05"])
     return best, glob
 
 def train_lgbm(fit_pairs: pl.DataFrame, val_pairs: pl.DataFrame, features: list, seed: int = 42):
     params = dict(
         objective="binary",
-        learning_rate=0.05,
+        learning_rate=0.03,
         num_leaves=127,
-        min_data_in_leaf=100,
-        feature_fraction=0.8,
-        bagging_fraction=0.8,
+        min_data_in_leaf=50,
+        feature_fraction=0.85,
+        bagging_fraction=0.85,
         bagging_freq=1,
-        lambda_l2=1.0,
+        lambda_l2=2.0,
         verbose=-1,
         seed=seed,
         num_threads=os.cpu_count() or 4
@@ -89,7 +90,7 @@ def train_lgbm(fit_pairs: pl.DataFrame, val_pairs: pl.DataFrame, features: list,
     model = lgb.train(
         params,
         dtr,
-        num_boost_round=1200,
+        num_boost_round=1500,
         valid_sets=[dva],
         callbacks=[lgb.early_stopping(50), lgb.log_evaluation(100)]
     )

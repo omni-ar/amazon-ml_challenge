@@ -8,20 +8,33 @@ __pycache__/
 venv/
 env/
 .ipynb_checkpoints/
+.pytest_cache/
 
-# OS metadata
+# IDE & OS metadata
 .DS_Store
 __MACOSX/
+.vscode/
+.idea/
+*.swp
 
-# Dataset files (Very Large - Exceeds GitHub 100MB limit)
+# Dataset files & Large Data Formats (Exceeds GitHub 100MB limit)
 student_resource/dataset/
 dataset/
 *.tsv
+*.csv
+*.parquet
+*.feather
+*.pkl
+*.pickle
+*.npy
+*.npz
 
 # Generated Output & Model Work Directories
 output/
 work/
 scratch/
+*.log
+logs/
 
 # Large Compressed Archives
 *.zip

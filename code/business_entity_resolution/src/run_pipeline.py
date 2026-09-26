@@ -68,18 +68,17 @@ def run():
     s1_scan = scan_tsv(Config.TRAIN_S1_PATH)
     s1_tr = s1_scan.filter((id_num("entity_id") * 2654435761 % 1000003) % 100 < SAMPLE_PCT).collect()
     
-    # Keep matching ground truth and random negatives for candidates
+    # Keep matching ground truth candidates and a realistic random sample of all candidates
+    # (Without filtering out candidates that matched other S1 entities, providing realistic hard negatives)
     gt_sample = gt.join(s1_tr.select(pl.col("entity_id").alias("s1_id")), on="s1_id", how="semi")
     want_cands = gt_sample.select(pl.col("cand_id").alias("entity_id"), pl.lit(True).alias("_w"))
-    matched_all = gt.select(pl.col("cand_id").alias("entity_id"), pl.lit(True).alias("_m"))
     
     rnd_mask = (id_num("entity_id") * 40503 % 1000033) % 100 < SAMPLE_PCT
     cand_tr = (pl.concat([scan_tsv(Config.TRAIN_S2_PATH), scan_tsv(Config.TRAIN_S3_PATH)])
                .join(want_cands.lazy(), on="entity_id", how="left")
-               .join(matched_all.lazy(), on="entity_id", how="left")
-               .filter(pl.col("_w").is_not_null() | (pl.col("_m").is_null() & rnd_mask))
-               .drop("_w", "_m").collect())
-    del want_cands, matched_all, gt
+               .filter(pl.col("_w").is_not_null() | rnd_mask)
+               .drop("_w").collect())
+    del want_cands, gt
     gc.collect()
     
     log(f"Training sample loaded: {s1_tr.height:,} S1 entities, {cand_tr.height:,} candidate records.")
@@ -237,37 +236,57 @@ def run():
     full_matches = pl.concat(all_matching_dfs)
     full_candidates = pl.concat(all_candidate_dfs)
     
-    # Save files
+    # Save standard files
     full_matches.write_csv(Config.MATCHING_OUT, separator="\t", quote_style="never")
     full_candidates.write_csv(Config.CANDIDATE_OUT, separator="\t", quote_style="never")
     
-    log(f"Saved {full_matches.height:,} rows to {Config.MATCHING_OUT}")
-    log(f"Saved {full_candidates.height:,} rows to {Config.CANDIDATE_OUT}")
+    # Save (2) files as requested
+    full_matches.write_csv(Config.MATCHING_OUT_2, separator="\t", quote_style="never")
+    full_candidates.write_csv(Config.CANDIDATE_OUT_2, separator="\t", quote_style="never")
+    
+    log(f"Saved {full_matches.height:,} rows to:")
+    log(f"  - {Config.MATCHING_OUT}")
+    log(f"  - {Config.MATCHING_OUT_2}")
+    log(f"Saved {full_candidates.height:,} rows to:")
+    log(f"  - {Config.CANDIDATE_OUT}")
+    log(f"  - {Config.CANDIDATE_OUT_2}")
     
     # -------------------------------------------------------------
     # 6. RUN OFFICIAL VALIDATION SCRIPT
     # -------------------------------------------------------------
     log("\n" + "="*70)
-    log("Step 6: Running official submission validator...")
+    log("Step 6: Running official submission validator on output files...")
     log("="*70)
     validator_path = os.path.join(Config.WORKSPACE_ROOT, "student_resource", "utils", "validate_submission.py")
     test_dir = os.path.join(Config.DATASET_DIR, "test")
     
-    cmd = [
+    # Validate matching_results(2).tsv and candidate_pairs(2).tsv
+    cmd2 = [
         sys.executable, validator_path,
-        "--matching", Config.MATCHING_OUT,
-        "--candidate", Config.CANDIDATE_OUT,
+        "--matching", Config.MATCHING_OUT_2,
+        "--candidate", Config.CANDIDATE_OUT_2,
         "--test-dir", test_dir
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    print(res.stdout)
-    if res.stderr:
-        print(res.stderr)
+    res2 = subprocess.run(cmd2, capture_output=True, text=True)
+    print(res2.stdout)
+    if res2.stderr:
+        print(res2.stderr)
         
-    if res.returncode == 0:
-        log("SUCCESS! Official submission validation PASSED (Exit code 0)!")
+    if res2.returncode == 0:
+        log("SUCCESS! Official submission validation PASSED for (2) files (Exit code 0)!")
     else:
-        log(f"Validation FAILED with exit code {res.returncode}")
+        log(f"Validation FAILED for (2) files with exit code {res2.returncode}")
+        
+    # -------------------------------------------------------------
+    # 7. PACKAGE SUBMISSION ARCHIVES
+    # -------------------------------------------------------------
+    log("\n" + "="*70)
+    log("Step 7: Packaging submission(2).zip archive...")
+    log("="*70)
+    packager_path = os.path.join(Config.WORKSPACE_ROOT, "package_submission.py")
+    subprocess.run([sys.executable, packager_path], check=True)
+    log("Pipeline run complete!")
 
 if __name__ == "__main__":
     run()
+
