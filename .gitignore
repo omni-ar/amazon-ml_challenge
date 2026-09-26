@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches and virtual environments
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# OS metadata
+.DS_Store
+__MACOSX/
+
+# Dataset files (Very Large - Exceeds GitHub 100MB limit)
+student_resource/dataset/
+dataset/
+*.tsv
+
+# Generated Output & Model Work Directories
+output/
+work/
+scratch/
+
+# Large Compressed Archives
+*.zip
+*.tar.gz
+*.7z
